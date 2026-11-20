@@ -44,11 +44,13 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
     var shares by remember(draft?.host) { mutableStateOf<List<String>?>(null) }
     var folders by remember(draft?.share, draft?.folder) { mutableStateOf<List<String>?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
-    var shareName by remember { mutableStateOf("") }
-    var folderName by remember { mutableStateOf("") }
-    var folderQuery by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
     var foundPaths by remember { mutableStateOf<List<String>?>(null) }
     var searching by remember { mutableStateOf(false) }
+    var diskName by remember { mutableStateOf("") }
+    var making by remember { mutableStateOf(false) }
+    var folderName by remember { mutableStateOf("") }
+    var holdAuto by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     if (draft == null) {
         LaunchedEffect(Unit) { navigator.back() }
@@ -65,6 +67,13 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
             }
         }
         found.onSuccess { shares = it }.onFailure { problem = explain(it, listOfNotNull(current.password)) }
+    }
+
+    LaunchedEffect(shares, current.share) {
+        val list = shares ?: return@LaunchedEffect
+        if (!holdAuto && current.share == null && list.size == 1) {
+            draftPad.draft = current.copy(share = list.first(), folder = "")
+        }
     }
 
     LaunchedEffect(current.share, current.folder) {
@@ -86,10 +95,10 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
         found.onSuccess { folders = it }.onFailure { problem = explain(it, listOfNotNull(current.password)) }
     }
 
-    LaunchedEffect(current.share, folderQuery) {
+    LaunchedEffect(current.share, query) {
         val share = current.share
-        val query = folderQuery.trim()
-        if (share == null || query.isEmpty()) {
+        val needle = query.trim()
+        if (share == null || needle.isEmpty()) {
             searching = false
             foundPaths = null
             return@LaunchedEffect
@@ -105,7 +114,7 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
                     current.password,
                     current.domain,
                     share,
-                    query,
+                    needle,
                 )
             }
         }
@@ -141,144 +150,148 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
         }
     }
 
+    fun openFolder(name: String) {
+        val next = listOf(current.folder, name).filter { it.isNotBlank() }.joinToString("/")
+        query = ""
+        draftPad.draft = current.copy(folder = next)
+    }
+
     Column(
         Modifier
             .fillMaxSize()
             .background(Ink)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .imePadding(),
     ) {
-        Wordmark(40.sp)
-        Text(current.label, color = Mist, fontSize = 28.sp, fontWeight = FontWeight.Black)
-        Text(
-            if (current.share == null) "Choose a share" else pathLabel(current.share, current.folder),
-            color = Dim,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 14.sp,
-        )
-        Text(
-            "Copied photos and videos go in the folder you pick. Something like media/backup/phone.",
-            color = Dim,
-            fontSize = 16.sp,
-        )
-        if (current.share == null) {
-            if (shares == null && problem == null) CircularProgressIndicator(color = Sky)
-            FolderSearch.narrow(shares.orEmpty(), shareName).forEach { name ->
-                FocusCard(
-                    onClick = { draftPad.draft = current.copy(share = name, folder = "") },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(name, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
-                }
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Wordmark(40.sp)
+            Text("Pick a folder", color = Mist, fontSize = 28.sp, fontWeight = FontWeight.Black)
+            Text(current.label, color = Dim, fontSize = 16.sp)
+            if (current.share != null) {
+                Text(
+                    pathLabel(current.share, current.folder),
+                    color = Sky,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                )
             }
-            Field("or type the share name", shareName) { shareName = it }
-            Pill("Open share") {
-                val tidy = ShareNames.tidy(shareName)
-                if (tidy == null) problem = "That share name cannot be used."
-                else draftPad.draft = current.copy(share = tidy, folder = "")
-            }
-        } else {
-            if (current.folder.isNotEmpty()) {
-                Pill("Up") {
-                    val parent = current.folder.substringBeforeLast('/', "")
-                    draftPad.draft = current.copy(folder = parent)
-                }
-            }
-            Field("find a folder", folderQuery) { folderQuery = it }
-            if (searching) CircularProgressIndicator(color = Sky)
-            val query = folderQuery.trim()
-            if (query.isNotEmpty()) {
-                val here = FolderSearch.narrow(folders.orEmpty(), query)
-                here.forEach { name ->
-                    FocusCard(
-                        onClick = {
-                            val next = listOf(current.folder, name).filter { it.isNotBlank() }.joinToString("/")
-                            folderQuery = ""
-                            draftPad.draft = current.copy(folder = next)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(name, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
+            if (current.share == null) {
+                if (shares == null && problem == null) CircularProgressIndicator(color = Sky)
+                if (shares.orEmpty().isNotEmpty()) {
+                    SearchBox("Search", query) { query = it }
+                    FolderSearch.narrow(shares.orEmpty(), query).forEach { name ->
+                        FolderRow(name) { draftPad.draft = current.copy(share = name, folder = "") }
                     }
                 }
-                val hits = foundPaths.orEmpty().filter { it !in here }
-                if (!searching && foundPaths != null && here.isEmpty() && hits.isEmpty()) {
-                    Text("No folder matches that.", color = Dim, fontSize = 16.sp)
+                if (shares != null && shares!!.isEmpty()) {
+                    Text("Type the disk name.", color = Dim, fontSize = 16.sp)
+                    SearchBox("Disk name", diskName) { diskName = it }
+                    Pill("Open") {
+                        val tidy = ShareNames.tidy(diskName)
+                        if (tidy == null) problem = "That name cannot be used."
+                        else draftPad.draft = current.copy(share = tidy, folder = "")
+                    }
                 }
-                hits.forEach { path ->
-                    FocusCard(
-                        onClick = {
-                            folderQuery = ""
+            } else {
+                SearchBox("Search folders", query) { query = it }
+                if (current.folder.isNotEmpty()) {
+                    FolderRow("Up") {
+                        query = ""
+                        draftPad.draft = current.copy(folder = current.folder.substringBeforeLast('/', ""))
+                    }
+                }
+                if (searching) CircularProgressIndicator(color = Sky)
+                val needle = query.trim()
+                val here = if (needle.isEmpty()) folders.orEmpty() else FolderSearch.narrow(folders.orEmpty(), needle)
+                here.forEach { name -> FolderRow(name) { openFolder(name) } }
+                if (needle.isNotEmpty()) {
+                    val hits = foundPaths.orEmpty().filter { path ->
+                        path.substringAfterLast('/') !in here && path !in here
+                    }
+                    if (!searching && foundPaths != null && here.isEmpty() && hits.isEmpty()) {
+                        Text("No folder matches that.", color = Dim, fontSize = 16.sp)
+                    }
+                    hits.forEach { path ->
+                        FolderRow(path) {
+                            query = ""
                             draftPad.draft = current.copy(folder = path)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(path, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
-                    }
-                }
-                val typed = FolderSearch.path(query)
-                if (typed != null) {
-                    Pill("Open $typed") {
-                        folderQuery = ""
-                        draftPad.draft = current.copy(folder = typed)
-                    }
-                }
-            }
-            if (folders == null && problem == null) CircularProgressIndicator(color = Sky)
-            if (query.isEmpty() && folders != null && folders!!.isEmpty()) {
-                Text("Nothing in here yet. Use this folder, or make one.", color = Dim, fontSize = 16.sp)
-            }
-            if (query.isEmpty()) folders.orEmpty().forEach { name ->
-                FocusCard(
-                    onClick = {
-                        val next = listOf(current.folder, name).filter { it.isNotBlank() }.joinToString("/")
-                        draftPad.draft = current.copy(folder = next)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(name, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
-                }
-            }
-            if (problem != null) {
-                Pill("Choose another share") {
-                    problem = null
-                    folderQuery = ""
-                    draftPad.draft = current.copy(share = null, folder = "")
-                }
-            }
-            Pill(if (busy) "saving" else "Use this folder") { save() }
-            Field("new folder", folderName) { folderName = it }
-            Pill("Make a folder here") {
-                val share = current.share
-                if (folderName.isBlank() || busy) return@Pill
-                busy = true
-                scope.launch {
-                    val made = withContext(Dispatchers.IO) {
-                        runCatching {
-                            container.smb.makeFolder(
-                                current.host,
-                                current.username,
-                                current.password,
-                                current.domain,
-                                share,
-                                current.folder,
-                                folderName,
-                            )
                         }
                     }
-                    busy = false
-                    made.onSuccess {
-                        folderName = ""
-                        draftPad.draft = current.copy(folder = it)
-                    }.onFailure { problem = explain(it, listOfNotNull(current.password)) }
+                    val typed = FolderSearch.path(needle)
+                    if (typed != null) {
+                        Pill("Open $typed") {
+                            query = ""
+                            draftPad.draft = current.copy(folder = typed)
+                        }
+                    }
+                }
+                if (folders == null && problem == null && needle.isEmpty()) CircularProgressIndicator(color = Sky)
+                if (needle.isEmpty() && folders != null && folders!!.isEmpty()) {
+                    Text("This folder is empty. Use it, or make one.", color = Dim, fontSize = 16.sp)
+                }
+                if ((shares?.size ?: 0) > 1) {
+                    Pill("Other disk") {
+                        holdAuto = true
+                        query = ""
+                        problem = null
+                        draftPad.draft = current.copy(share = null, folder = "")
+                    }
+                }
+                if (!making) {
+                    Pill("New folder") { making = true }
+                } else {
+                    SearchBox("New folder name", folderName) { folderName = it }
+                    Pill("Create") {
+                        val share = current.share
+                        if (folderName.isBlank() || busy) return@Pill
+                        busy = true
+                        scope.launch {
+                            val made = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    container.smb.makeFolder(
+                                        current.host,
+                                        current.username,
+                                        current.password,
+                                        current.domain,
+                                        share,
+                                        current.folder,
+                                        folderName,
+                                    )
+                                }
+                            }
+                            busy = false
+                            made.onSuccess {
+                                folderName = ""
+                                making = false
+                                draftPad.draft = current.copy(folder = it)
+                            }.onFailure { problem = explain(it, listOfNotNull(current.password)) }
+                        }
+                    }
                 }
             }
+            problem?.let { Text(it, color = Coral, fontSize = 16.sp) }
         }
-        problem?.let { Text(it, color = Coral, fontSize = 16.sp) }
+        if (current.share != null) {
+            ActionButton(
+                if (busy) "Saving" else "Use this folder",
+                primary = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+            ) { save() }
+        }
+    }
+}
+
+@Composable
+private fun FolderRow(label: String, onClick: () -> Unit) {
+    FocusCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Text(label, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
     }
 }
 

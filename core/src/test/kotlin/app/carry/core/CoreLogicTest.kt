@@ -10,6 +10,7 @@ import app.carry.core.net.HostText
 import app.carry.core.net.Ipv4Subnets
 import app.carry.core.net.Netbios
 import app.carry.core.net.NetbiosName
+import app.carry.core.net.ShareEnum
 import app.carry.core.store.SecretCodec
 import app.carry.core.store.SettingsCodec
 import app.carry.core.sync.BackupPaths
@@ -188,6 +189,21 @@ class CoreLogicTest {
     }
 
     @Test
+    fun shareEnumKeepsDisksAndDropsIpc() {
+        val stub = shareEnumStub(
+            "media" to 0,
+            "IPC$" to 3,
+            "C$" to Int.MIN_VALUE,
+            "photos" to 0,
+        )
+        assertEquals(listOf("media", "photos"), ShareEnum.diskNames(stub))
+        assertTrue(ShareEnum.diskNames(ByteArray(0)).isEmpty())
+        assertTrue("privatepi" in ShareNames.guesses("privatepi.local"))
+        assertTrue("PRIVATEPI" in ShareNames.guesses("PRIVATEPI"))
+        assertTrue("Users" in ShareNames.guesses("privatepi.local"))
+    }
+
+    @Test
     fun folderSearchMatchesAPathAndDropsDotSegments() {
         val names = listOf("media", "Photos", "backup")
         assertEquals(listOf("Photos"), FolderSearch.narrow(names, "pho"))
@@ -287,6 +303,40 @@ class CoreLogicTest {
         header[5] = 1
         header[7] = 1
         return header + question + byteArrayOf(0) + meta + body
+    }
+
+    private fun shareEnumStub(vararg shares: Pair<String, Int>): ByteArray {
+        val out = ArrayList<Byte>()
+        fun u32(value: Int) {
+            out += (value and 0xFF).toByte()
+            out += ((value shr 8) and 0xFF).toByte()
+            out += ((value shr 16) and 0xFF).toByte()
+            out += ((value shr 24) and 0xFF).toByte()
+        }
+        fun wstr(text: String) {
+            val chars = (text + "\u0000").toCharArray()
+            u32(chars.size)
+            u32(0)
+            u32(chars.size)
+            chars.forEach { char ->
+                out += (char.code and 0xFF).toByte()
+                out += ((char.code shr 8) and 0xFF).toByte()
+            }
+            while (out.size % 4 != 0) out += 0
+        }
+        u32(0x00020000)
+        u32(1)
+        u32(1)
+        u32(shares.size)
+        u32(0x00020004)
+        u32(shares.size)
+        shares.forEachIndexed { index, (_, type) ->
+            u32(0x00020100 + index * 2)
+            u32(type)
+            u32(0)
+        }
+        shares.forEach { (name, _) -> wstr(name) }
+        return out.toByteArray()
     }
 
     private fun writeName(buffer: ByteArray, at: Int, name: String, suffix: Int, flags: Int) {

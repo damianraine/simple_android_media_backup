@@ -33,6 +33,13 @@ object ShareNames {
         "Drive",
     )
 
+    /** Common names, plus the server's own name. A Pi often shares a folder called after the host. */
+    fun guesses(host: String): List<String> {
+        val bare = host.substringBefore(':').substringBefore('.').trim()
+        val extra = listOf(bare, bare.lowercase()).mapNotNull { tidy(it) }
+        return (extra + usual).distinct()
+    }
+
     fun tidy(name: String): String? {
         val trimmed = name.trim().trim('\\', '/')
         if (trimmed.isEmpty() || trimmed.length > 80) return null

@@ -217,6 +217,27 @@ fun Field(
 }
 
 @Composable
+fun SearchBox(placeholder: String, value: String, onChange: (String) -> Unit) {
+    BasicTextField(
+        value = value,
+        onValueChange = { onChange(it.replace("\n", "").replace("\r", "")) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        textStyle = TextStyle(color = Mist, fontSize = 18.sp, fontFamily = FontFamily.Monospace),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        decorationBox = { inner ->
+            Box {
+                if (value.isEmpty()) Text(placeholder, color = Dim, fontSize = 18.sp)
+                inner()
+            }
+        },
+    )
+}
+
+@Composable
 fun Notice(
     title: String,
     body: String,

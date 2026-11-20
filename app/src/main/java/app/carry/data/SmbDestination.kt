@@ -40,8 +40,11 @@ class SmbDestination {
 
     fun shares(host: String, username: String?, password: String?, domain: String?): List<String> =
         useSession(host, username, password, domain) { session ->
+            val listed = runCatching { ShareWire.list(session) }.getOrDefault(emptyList())
+                .mapNotNull { ShareNames.tidy(it) }
+            if (listed.isNotEmpty()) return@useSession listed.distinct()
             val found = mutableListOf<String>()
-            for (name in ShareNames.usual) {
+            for (name in ShareNames.guesses(host)) {
                 try {
                     val share = session.connectShare(name)
                     try {

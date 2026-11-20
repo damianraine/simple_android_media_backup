@@ -39,7 +39,6 @@ fun FindScreen(container: AppContainer, navigator: Navigator, draftPad: DraftPad
     var scanning by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf("looking on this network") }
     var drives by remember { mutableStateOf<List<FoundDrive>>(emptyList()) }
-    var pending by remember { mutableStateOf<FoundDrive?>(null) }
     var typed by remember { mutableStateOf("") }
     var problem by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -55,8 +54,28 @@ fun FindScreen(container: AppContainer, navigator: Navigator, draftPad: DraftPad
         if (found.isEmpty() && status.startsWith("checking")) status = "nothing answered on port 445"
     }
 
-    fun consider(drive: FoundDrive) {
-        pending = drive
+    fun open(drive: FoundDrive) {
+        if (busy) return
+        busy = true
+        problem = null
+        scope.launch {
+            val opened = withContext(Dispatchers.IO) {
+                runCatching { container.smb.shares(drive.host, null, null, null) }
+            }
+            busy = false
+            opened.onSuccess {
+                draftPad.draft = Draft(host = drive.host, label = drive.name)
+                navigator.push(Route.Browse)
+            }.onFailure { error ->
+                val text = explain(error)
+                if (text.contains("password", ignoreCase = true) || text.contains("refused", ignoreCase = true)) {
+                    draftPad.draft = Draft(host = drive.host, label = drive.name)
+                    navigator.push(Route.SignIn)
+                } else {
+                    problem = text
+                }
+            }
+        }
     }
 
     Column(
@@ -72,15 +91,15 @@ fun FindScreen(container: AppContainer, navigator: Navigator, draftPad: DraftPad
     ) {
         Wordmark(40.sp)
         Text(
-            if (scanning) "Searching for destinations..." else "Destinations",
+            if (scanning) "Looking for servers" else "Pick a server",
             color = Mist,
             fontSize = 28.sp,
             fontWeight = FontWeight.Black,
         )
         Text(status, color = Sky, fontFamily = FontFamily.Monospace, fontSize = 14.sp)
-        if (scanning) CircularProgressIndicator(color = Sky)
+        if (scanning || busy) CircularProgressIndicator(color = Sky)
         drives.forEach { drive ->
-            FocusCard(onClick = { if (!busy) consider(drive) }, modifier = Modifier.fillMaxWidth()) {
+            FocusCard(onClick = { open(drive) }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Text(drive.name, color = Mist, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text(drive.host, color = Dim, fontFamily = FontFamily.Monospace, fontSize = 14.sp)
@@ -90,48 +109,13 @@ fun FindScreen(container: AppContainer, navigator: Navigator, draftPad: DraftPad
         if (!scanning && drives.isEmpty()) {
             Text("Nothing answered. Type an address.", color = Dim, fontSize = 16.sp)
         }
-        Field("address", typed) { typed = it }
-        Pill("Use this address") {
+        SearchBox("Address", typed) { typed = it }
+        Pill("Open") {
             val drive = container.discover.typed(typed)
-            if (drive == null) problem = "That address cannot be used." else consider(drive)
+            if (drive == null) problem = "That address cannot be used." else open(drive)
         }
         problem?.let { Text(it, color = Coral, fontSize = 16.sp) }
         if (navigator.canBack) Pill("Back") { navigator.back() }
-    }
-
-    pending?.let { drive ->
-        Notice(
-            title = "Do you want to add this as a saved destination?",
-            body = "${drive.name} · ${drive.host}",
-            confirm = "Add it",
-            dismiss = "Not this one",
-            onConfirm = {
-                if (busy) return@Notice
-                busy = true
-                problem = null
-                val chosen = drive
-                pending = null
-                scope.launch {
-                    val opened = withContext(Dispatchers.IO) {
-                        runCatching { container.smb.shares(chosen.host, null, null, null) }
-                    }
-                    busy = false
-                    opened.onSuccess {
-                        draftPad.draft = Draft(host = chosen.host, label = chosen.name)
-                        navigator.push(Route.Browse)
-                    }.onFailure { error ->
-                        val text = explain(error)
-                        if (text.contains("password", ignoreCase = true) || text.contains("refused", ignoreCase = true)) {
-                            draftPad.draft = Draft(host = chosen.host, label = chosen.name)
-                            navigator.push(Route.SignIn)
-                        } else {
-                            problem = text
-                        }
-                    }
-                }
-            },
-            onDismiss = { pending = null },
-        )
     }
 }
 
