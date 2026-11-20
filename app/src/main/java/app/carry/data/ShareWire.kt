@@ -23,7 +23,11 @@ internal object ShareWire {
             val pipe = pipes.open(
                 "srvsvc",
                 SMB2ImpersonationLevel.Impersonation,
-                setOf(AccessMask.FILE_READ_DATA, AccessMask.FILE_WRITE_DATA, AccessMask.FILE_READ_ATTRIBUTES),
+                setOf(
+                    AccessMask.MAXIMUM_ALLOWED,
+                    AccessMask.FILE_READ_DATA,
+                    AccessMask.FILE_WRITE_DATA,
+                ),
                 setOf(FileAttributes.FILE_ATTRIBUTE_NORMAL),
                 setOf(SMB2ShareAccess.FILE_SHARE_READ, SMB2ShareAccess.FILE_SHARE_WRITE),
                 SMB2CreateDisposition.FILE_OPEN,

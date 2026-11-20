@@ -2,7 +2,7 @@
 
 the phone, copied home.
 
-[![version 1.2.0](https://img.shields.io/badge/version-1.2.0-5CE1FF?style=flat-square)](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk)
+[![version 1.3.0](https://img.shields.io/badge/version-1.3.0-5CE1FF?style=flat-square)](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk)
 [![download carry.apk](https://img.shields.io/badge/download-carry.apk-F2C14E?style=flat-square)](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk)
 [![license Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-F6F3EA?style=flat-square)](LICENSE)
 [![Android 6.0+](https://img.shields.io/badge/Android-6.0%2B-7DFFB3?style=flat-square)](#requirements)
@@ -38,7 +38,7 @@ Bump `appVersion` and `appVersionCode` in `gradle/libs.versions.toml` before a b
 
 ## What you can do
 
-**First launch.** With nothing saved, Carry looks for servers on the local network. Tap a server. If it wants a password, you type it. The next screen is the folders on that server. Search them, open one, and tap **Use this folder**. One disk opens on its own. The host, the folder, and the password stay on the device.
+**First launch.** With nothing saved, Carry looks for servers on the local network. Tap a server. If it wants a password, you type it. The next screen is a folder tree. Tap a folder to open it, then tap **Use this folder**. **New folder** adds a folder inside the one you tapped. You do not type a disk name or a path. The host, the folder, and the password stay on the device.
 
 The password is encrypted with the Android keystore. `allowBackup` is off. An update signed with the same key keeps the saved destinations.
 
@@ -66,7 +66,7 @@ GitHub Actions runs that on every push and pull request. Pushes to `main`, and t
 
 | | |
 | --- | --- |
-| App | 1.2.0 (versionCode 3) |
+| App | 1.3.0 (versionCode 4) |
 | Sideload URL | [continuous/carry.apk](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk) |
 | Numbered releases | Tag `v*` on `main`. The asset name is still `carry.apk`. |
 

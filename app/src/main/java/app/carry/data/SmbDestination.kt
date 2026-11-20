@@ -52,10 +52,8 @@ class SmbDestination {
                     } finally {
                         runCatching { share.close() }
                     }
-                } catch (_: SMBApiException) {
-                    // That name is not published. Try the next one.
                 } catch (_: Exception) {
-                    break
+                    // That name is not a disk. Keep going.
                 }
             }
             found.distinct()

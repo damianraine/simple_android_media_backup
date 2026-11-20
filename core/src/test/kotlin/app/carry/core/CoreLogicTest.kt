@@ -204,6 +204,12 @@ class CoreLogicTest {
     }
 
     @Test
+    fun shareEnumReadsContainerThenCount() {
+        val stub = shareEnumStub("backup" to 0)
+        assertEquals(listOf("backup"), ShareEnum.diskNames(stub))
+    }
+
+    @Test
     fun folderSearchMatchesAPathAndDropsDotSegments() {
         val names = listOf("media", "Photos", "backup")
         assertEquals(listOf("Photos"), FolderSearch.narrow(names, "pho"))
@@ -327,8 +333,9 @@ class CoreLogicTest {
         u32(0x00020000)
         u32(1)
         u32(1)
-        u32(shares.size)
         u32(0x00020004)
+        u32(shares.size)
+        u32(0x00020008)
         u32(shares.size)
         shares.forEachIndexed { index, (_, type) ->
             u32(0x00020100 + index * 2)

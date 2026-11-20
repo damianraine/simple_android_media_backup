@@ -3,6 +3,8 @@ package app.carry.core.net
 /**
  * Disk names from a NetShareEnum level-1 stub. Hidden admin names ending in $ are left out.
  * IPC and printer shares are left out.
+ *
+ * The stub is the share struct, then the container, then the array count, then each name.
  */
 object ShareEnum {
     fun diskNames(stub: ByteArray): List<String> {
@@ -12,6 +14,7 @@ object ShareEnum {
         val level = reader.u32()
         val switch = reader.u32()
         if (level != 1 || switch != 1) return emptyList()
+        if (reader.u32() == 0) return emptyList()
         val entries = reader.u32()
         if (entries <= 0 || entries > 512) return emptyList()
         if (reader.u32() == 0) return emptyList()
