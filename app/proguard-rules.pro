@@ -1,0 +1,5 @@
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+-dontwarn org.jetbrains.annotations.**
+-keep class app.carry.core.** { *; }
+-dontwarn org.bouncycastle.**
+-dontwarn org.slf4j.**
