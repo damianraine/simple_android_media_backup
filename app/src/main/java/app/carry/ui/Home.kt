@@ -73,7 +73,11 @@ fun HomeScreen(container: AppContainer, navigator: Navigator) {
                 fontSize = 14.sp,
             )
             Text(
-                "Copies on its own at ${SyncClock.label()}, on Wi-Fi. Files already there are left alone.",
+                if (SyncClock.normalize(settings.syncMinutes).isEmpty()) {
+                    "Copies when you tap Sync now, on Wi-Fi. Files already there are left alone."
+                } else {
+                    "Copies on its own at ${SyncClock.label(settings.syncMinutes)}, on Wi-Fi. Files already there are left alone."
+                },
                 color = Dim,
                 fontSize = 16.sp,
             )

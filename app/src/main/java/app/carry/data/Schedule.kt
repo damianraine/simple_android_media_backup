@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -29,8 +30,30 @@ import app.carry.core.sync.SyncClock
 import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 
+/** The saved copy times, readable from an alarm without opening the settings store. */
+object ScheduleMirror {
+    private const val FILE = "carry_schedule"
+    private const val KEY = "sync_minutes"
+
+    fun read(context: Context): List<Int> {
+        val prefs = prefs(context)
+        if (!prefs.contains(KEY)) return SyncClock.usual
+        val raw = prefs.getString(KEY, "").orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return SyncClock.normalize(raw.split(',').mapNotNull { it.toIntOrNull() })
+    }
+
+    fun write(context: Context, minutes: List<Int>) {
+        val clean = SyncClock.normalize(minutes)
+        prefs(context).edit().putString(KEY, clean.joinToString(",")).apply()
+    }
+
+    private fun prefs(context: Context): SharedPreferences =
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+}
+
 /**
- * Two exact alarms, 18:00 and 00:00, plus a quiet WorkManager backstop.
+ * One alarm for the next saved time, plus a quiet WorkManager backstop.
  * The backstop does nothing when that slot already finished, so a phone that slept through
  * the alarm still copies once, and a phone that did not does not copy twice.
  */
@@ -41,9 +64,15 @@ object CarrySchedule {
     private const val MANUAL = "manual"
 
     fun arm(context: Context) {
-        val at = SyncClock.nextAlarm(ZonedDateTime.now()).toInstant().toEpochMilli()
         val alarms = context.getSystemService(AlarmManager::class.java)
         val pending = pending(context)
+        val next = SyncClock.nextAlarm(ZonedDateTime.now(), ScheduleMirror.read(context))
+        if (next == null) {
+            alarms.cancel(pending)
+            WorkManager.getInstance(context).cancelUniqueWork(BACKSTOP)
+            return
+        }
+        val at = next.toInstant().toEpochMilli()
         val exact = Build.VERSION.SDK_INT < 31 || alarms.canScheduleExactAlarms()
         if (exact) {
             alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)

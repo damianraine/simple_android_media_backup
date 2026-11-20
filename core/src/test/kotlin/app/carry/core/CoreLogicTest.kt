@@ -14,6 +14,7 @@ import app.carry.core.store.SecretCodec
 import app.carry.core.store.SettingsCodec
 import app.carry.core.sync.BackupPaths
 import app.carry.core.sync.BackupPlan
+import app.carry.core.sync.FolderSearch
 import app.carry.core.sync.MediaFilter
 import app.carry.core.sync.ShareNames
 import app.carry.core.sync.SyncClock
@@ -168,7 +169,33 @@ class CoreLogicTest {
         assertEquals(ZonedDateTime.of(2026, 11, 21, 0, 0, 0, 0, zone), SyncClock.nextAlarm(justFired))
         val afterMidnight = ZonedDateTime.of(2026, 11, 21, 0, 0, 30, 0, zone)
         assertEquals(ZonedDateTime.of(2026, 11, 21, 18, 0, 0, 0, zone), SyncClock.nextAlarm(afterMidnight))
-        assertEquals("18:00 and 00:00", SyncClock.label())
+        assertEquals("00:00 and 18:00", SyncClock.label())
+    }
+
+    @Test
+    fun aSavedScheduleReplacesTheDefaultBells() {
+        val morning = ZonedDateTime.of(2026, 11, 20, 7, 10, 0, 0, zone)
+        val times = listOf(8 * 60 + 30, 21 * 60, 8 * 60 + 30, -15)
+        assertEquals("08:30 and 21:00", SyncClock.label(times))
+        assertEquals(ZonedDateTime.of(2026, 11, 20, 8, 30, 0, 0, zone), SyncClock.nextAlarm(morning, times))
+        assertEquals("2026-11-19T21:00", SyncClock.slotId(morning, times))
+        assertNull(SyncClock.nextAlarm(morning, emptyList()))
+        assertNull(SyncClock.slotId(morning, emptyList()))
+        assertEquals("Sync now only", SyncClock.label(emptyList()))
+        val saved = SettingsCodec.decode("""{"syncMinutes":[510,1260]}""")
+        assertEquals(listOf(510, 1260), saved.syncMinutes)
+        assertEquals(listOf(0, 18 * 60), SettingsCodec.decode("{}").syncMinutes)
+    }
+
+    @Test
+    fun folderSearchMatchesAPathAndDropsDotSegments() {
+        val names = listOf("media", "Photos", "backup")
+        assertEquals(listOf("Photos"), FolderSearch.narrow(names, "pho"))
+        assertEquals(names, FolderSearch.narrow(names, "  "))
+        assertTrue(FolderSearch.matches("media/backup/phone", "Backup"))
+        assertFalse(FolderSearch.matches("media/backup/phone", "camera"))
+        assertEquals("media/backup/phone", FolderSearch.path(" /media/../media/backup/phone/ "))
+        assertNull(FolderSearch.path(".."))
     }
 
     @Test

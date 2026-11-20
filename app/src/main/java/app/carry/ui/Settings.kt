@@ -1,6 +1,7 @@
 package app.carry.ui
 
 import android.app.AlarmManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -36,6 +37,8 @@ import app.carry.core.model.Layout
 import app.carry.core.sync.SyncClock
 import app.carry.core.text.WhenText
 import app.carry.data.AppUpdate
+import app.carry.data.CarrySchedule
+import app.carry.data.ScheduleMirror
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 
@@ -115,11 +118,32 @@ fun SettingsScreen(container: AppContainer, navigator: Navigator, draftPad: Draf
         Pill(if (settings.layout == Layout.SOURCE_FOLDER) "Source folder · in use" else "Source folder") {
             scope.launch { container.settings.update { it.copy(layout = Layout.SOURCE_FOLDER) } }
         }
+        Text("Copy times", color = Mist, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Carry copies at ${SyncClock.label()}, when the phone is on Wi-Fi. It does not overwrite a file that is already there.",
+            if (SyncClock.normalize(settings.syncMinutes).isEmpty()) {
+                "Nothing is scheduled. Sync now still works. Copies wait for Wi-Fi and do not overwrite a file that is already there."
+            } else {
+                "Carry copies at ${SyncClock.label(settings.syncMinutes)}, when the phone is on Wi-Fi. It does not overwrite a file that is already there."
+            },
             color = Dim,
             fontSize = 16.sp,
         )
+        SyncClock.normalize(settings.syncMinutes).forEach { minute ->
+            Pill("Remove ${SyncClock.clock(minute)}") {
+                scope.launch { saveSchedule(container, context, settings.syncMinutes.filter { it != minute }) }
+            }
+        }
+        Pill("Add a time") {
+            android.app.TimePickerDialog(
+                context,
+                { _, hour, minute ->
+                    scope.launch { saveSchedule(container, context, settings.syncMinutes + (hour * 60 + minute)) }
+                },
+                18,
+                0,
+                true,
+            ).show()
+        }
         if (!exact) {
             Text("Exact alarms are off, so the copy may be a bit late. The backstop still runs.", color = Gold, fontSize = 16.sp)
             Pill("Allow exact alarms") {
@@ -192,4 +216,11 @@ fun SettingsScreen(container: AppContainer, navigator: Navigator, draftPad: Draf
             onDismiss = { forgetId = null },
         )
     }
+}
+
+private suspend fun saveSchedule(container: AppContainer, context: Context, minutes: List<Int>) {
+    val clean = SyncClock.normalize(minutes)
+    container.settings.update { it.copy(syncMinutes = clean) }
+    ScheduleMirror.write(context, clean)
+    CarrySchedule.arm(context)
 }

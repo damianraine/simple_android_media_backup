@@ -40,9 +40,10 @@ class Syncer(
         withContext(Dispatchers.IO) {
             val zone = ZoneId.systemDefault()
             val now = ZonedDateTime.now(zone)
-            val slot = SyncClock.slotId(now)
             val settings = settingsStore.read()
-            if (SyncClock.alreadyDone(settings.completedSlot, slot, manual)) {
+            val slot = SyncClock.slotId(now, settings.syncMinutes)
+            if (!manual && slot == null) return@withContext WorkResult.success()
+            if (slot != null && SyncClock.alreadyDone(settings.completedSlot, slot, manual)) {
                 return@withContext WorkResult.success()
             }
             val destination = settings.active()
@@ -124,11 +125,11 @@ class Syncer(
     }
 }
 
-private suspend fun remember(store: SettingsStore, slot: String, report: SyncReport, markSlot: Boolean) {
+private suspend fun remember(store: SettingsStore, slot: String?, report: SyncReport, markSlot: Boolean) {
     store.update { current ->
         current.copy(
             lastSync = report,
-            completedSlot = if (markSlot) slot else current.completedSlot,
+            completedSlot = if (markSlot && slot != null) slot else current.completedSlot,
         )
     }
 }

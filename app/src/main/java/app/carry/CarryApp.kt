@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import app.carry.data.CarrySchedule
 import app.carry.data.Discover
 import app.carry.data.MediaIndex
+import app.carry.data.ScheduleMirror
 import app.carry.data.SettingsStore
 import app.carry.data.SmbDestination
 import app.carry.data.Syncer
@@ -20,6 +21,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 
@@ -34,7 +36,11 @@ class CarryApp : Application() {
         Security.insertProviderAt(BouncyCastleProvider(), 1)
         container = AppContainer(this)
         CarrySchedule.channel(this)
-        CarrySchedule.arm(this)
+        container.scope.launch {
+            val saved = runCatching { container.settings.read() }.getOrNull()
+            if (saved != null) ScheduleMirror.write(this@CarryApp, saved.syncMinutes)
+            CarrySchedule.arm(this@CarryApp)
+        }
     }
 }
 

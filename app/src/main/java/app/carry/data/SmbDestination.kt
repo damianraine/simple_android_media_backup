@@ -3,6 +3,7 @@ package app.carry.data
 import app.carry.core.model.Destination
 import app.carry.core.model.RemoteFile
 import app.carry.core.sync.BackupPaths
+import app.carry.core.sync.FolderSearch
 import app.carry.core.sync.ShareNames
 import app.carry.core.text.FileNames
 import com.hierynomus.msdtyp.AccessMask
@@ -30,6 +31,12 @@ class SmbDestination {
         .withTimeout(12, TimeUnit.SECONDS)
         .withSoTimeout(20, TimeUnit.SECONDS)
         .build()
+
+    private companion object {
+        const val WALK_DEPTH = 4
+        const val WALK_LIMIT = 250
+        const val MATCH_LIMIT = 40
+    }
 
     fun shares(host: String, username: String?, password: String?, domain: String?): List<String> =
         useSession(host, username, password, domain) { session ->
@@ -67,6 +74,48 @@ class SmbDestination {
             if (!directory(info.fileAttributes)) return@mapNotNull null
             name
         }.sortedBy { it.lowercase() }
+    }
+
+    /**
+     * Walks a few levels of the share and returns folder paths that contain [query].
+     * A denied directory is skipped. The walk stops once enough matches are in hand.
+     */
+    fun findFolders(
+        host: String,
+        username: String?,
+        password: String?,
+        domain: String?,
+        shareName: String,
+        query: String,
+    ): List<String> {
+        val needle = query.trim()
+        if (needle.isEmpty()) return emptyList()
+        return useDisk(host, username, password, domain, shareName) { share ->
+            val found = mutableListOf<String>()
+            val queue = ArrayDeque<Pair<String, Int>>()
+            queue.add("" to 0)
+            var visited = 0
+            while (queue.isNotEmpty() && found.size < MATCH_LIMIT && visited < WALK_LIMIT) {
+                val (path, depth) = queue.removeFirst()
+                val listed = try {
+                    val smbPath = join(path)
+                    if (smbPath.isNotEmpty() && !share.folderExists(smbPath)) continue
+                    share.list(smbPath)
+                } catch (_: SMBApiException) {
+                    continue
+                }
+                visited++
+                for (info in listed) {
+                    val name = info.fileName
+                    if (name == "." || name == ".." || name.startsWith(".")) continue
+                    if (!directory(info.fileAttributes)) continue
+                    val relative = if (path.isEmpty()) name else "$path/$name"
+                    if (FolderSearch.matches(relative, needle)) found += relative
+                    if (depth + 1 < WALK_DEPTH) queue.add(relative to depth + 1)
+                }
+            }
+            found.sortedBy { it.lowercase() }
+        }
     }
 
     fun makeFolder(

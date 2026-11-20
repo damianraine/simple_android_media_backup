@@ -2,7 +2,7 @@
 
 the phone, copied home.
 
-[![version 1.0.0](https://img.shields.io/badge/version-1.0.0-5CE1FF?style=flat-square)](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk)
+[![version 1.1.0](https://img.shields.io/badge/version-1.1.0-5CE1FF?style=flat-square)](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk)
 [![download carry.apk](https://img.shields.io/badge/download-carry.apk-F2C14E?style=flat-square)](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk)
 [![license Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-F6F3EA?style=flat-square)](LICENSE)
 [![Android 6.0+](https://img.shields.io/badge/Android-6.0%2B-7DFFB3?style=flat-square)](#requirements)
@@ -38,13 +38,13 @@ Bump `appVersion` and `appVersionCode` in `gradle/libs.versions.toml` before a b
 
 ## What you can do
 
-**First launch.** With nothing saved, Carry says **Searching for destinations...** and knocks on port 445 across the local /24. Tap a drive. Carry asks **Do you want to add this as a saved destination?** If the drive wants a password, you type it. Then you pick a folder, such as `media/backup/phone`. The host, the folder, and the password stay on the device.
+**First launch.** With nothing saved, Carry says **Searching for destinations...** and knocks on port 445 across the local /24. Tap a drive. Carry asks **Do you want to add this as a saved destination?** If the drive wants a password, you type it. Then you pick a folder, such as `media/backup/phone`. **Find a folder** searches the share, and you can open a path you type. The host, the folder, and the password stay on the device.
 
 The password is encrypted with the Android keystore. `allowBackup` is off. An update signed with the same key keeps the saved destinations.
 
-**Settings.** Look for destinations again, change the folder of one you already saved, or choose which saved destination is in use. **Start from date** skips anything older. **Year / month** or **Source folder** is how the copies are laid out. Camera, DCIM, Pictures, WhatsApp media, Downloads, and other photo and video folders are included. Caches, thumbnails, and WhatsApp statuses are not.
+**Settings.** Look for destinations again, change the folder of one you already saved, or choose which saved destination is in use. **Copy times** is when the phone copies. It starts at 00:00 and 18:00. Add a time, or remove one. With none left, only **Sync now** runs. **Start from date** skips anything older. **Year / month** or **Source folder** is how the copies are laid out. Camera, DCIM, Pictures, WhatsApp media, Downloads, and other photo and video folders are included. Caches, thumbnails, and WhatsApp statuses are not.
 
-**The copy.** Before anything is sent, Carry lists the folders it would write and skips a file that is already there with the same size. It does not overwrite. A different file that would use the same name is saved beside it as `name (2).jpg`. **Sync now** on the main screen runs a copy immediately. Otherwise Carry wakes at 18:00 and at 00:00, and waits for Wi-Fi. A six-hour backstop catches a slot the alarm slept through, and does nothing if that slot already finished.
+**The copy.** Before anything is sent, Carry lists the folders it would write and skips a file that is already there with the same size. It does not overwrite. A different file that would use the same name is saved beside it as `name (2).jpg`. **Sync now** on the main screen runs a copy immediately. Otherwise Carry wakes at the times saved in Settings, and waits for Wi-Fi. A six-hour backstop catches a slot the alarm slept through, and does nothing if that slot already finished.
 
 ## What stays on the device
 
@@ -66,7 +66,7 @@ GitHub Actions runs that on every push and pull request. Pushes to `main`, and t
 
 | | |
 | --- | --- |
-| App | 1.0.0 (versionCode 1) |
+| App | 1.1.0 (versionCode 2) |
 | Sideload URL | [continuous/carry.apk](https://github.com/damianraine/simple_android_media_backup/releases/download/continuous/carry.apk) |
 | Numbered releases | Tag `v*` on `main`. The asset name is still `carry.apk`. |
 

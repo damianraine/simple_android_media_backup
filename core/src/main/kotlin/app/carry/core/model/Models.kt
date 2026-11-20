@@ -40,6 +40,8 @@ data class CarrySettings(
     val startFromEpochDay: Long? = null,
     val layout: Layout = Layout.YEAR_MONTH,
     val destinations: List<Destination> = emptyList(),
+    /** Minutes after midnight, local time. Empty means only a manual copy. Missing means 00:00 and 18:00. */
+    val syncMinutes: List<Int> = listOf(0, 18 * 60),
     val lastSync: SyncReport? = null,
     /** Slot id of the last automatic copy that finished, so the backstop does not do it again. */
     val completedSlot: String? = null,

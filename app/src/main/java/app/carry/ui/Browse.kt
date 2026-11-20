@@ -28,10 +28,12 @@ import androidx.compose.ui.unit.sp
 import app.carry.AppContainer
 import app.carry.core.model.Destination
 import app.carry.core.sync.BackupPaths
+import app.carry.core.sync.FolderSearch
 import app.carry.core.sync.ShareNames
 import app.carry.data.explain
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -44,6 +46,9 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
     var problem by remember { mutableStateOf<String?>(null) }
     var shareName by remember { mutableStateOf("") }
     var folderName by remember { mutableStateOf("") }
+    var folderQuery by remember { mutableStateOf("") }
+    var foundPaths by remember { mutableStateOf<List<String>?>(null) }
+    var searching by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     if (draft == null) {
         LaunchedEffect(Unit) { navigator.back() }
@@ -79,6 +84,33 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
             }
         }
         found.onSuccess { folders = it }.onFailure { problem = explain(it, listOfNotNull(current.password)) }
+    }
+
+    LaunchedEffect(current.share, folderQuery) {
+        val share = current.share
+        val query = folderQuery.trim()
+        if (share == null || query.isEmpty()) {
+            searching = false
+            foundPaths = null
+            return@LaunchedEffect
+        }
+        searching = true
+        foundPaths = null
+        delay(250)
+        val found = withContext(Dispatchers.IO) {
+            runCatching {
+                container.smb.findFolders(
+                    current.host,
+                    current.username,
+                    current.password,
+                    current.domain,
+                    share,
+                    query,
+                )
+            }
+        }
+        searching = false
+        found.onSuccess { foundPaths = it }.onFailure { problem = explain(it, listOfNotNull(current.password)) }
     }
 
     fun save() {
@@ -135,7 +167,7 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
         )
         if (current.share == null) {
             if (shares == null && problem == null) CircularProgressIndicator(color = Sky)
-            shares.orEmpty().forEach { name ->
+            FolderSearch.narrow(shares.orEmpty(), shareName).forEach { name ->
                 FocusCard(
                     onClick = { draftPad.draft = current.copy(share = name, folder = "") },
                     modifier = Modifier.fillMaxWidth(),
@@ -156,11 +188,51 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
                     draftPad.draft = current.copy(folder = parent)
                 }
             }
+            Field("find a folder", folderQuery) { folderQuery = it }
+            if (searching) CircularProgressIndicator(color = Sky)
+            val query = folderQuery.trim()
+            if (query.isNotEmpty()) {
+                val here = FolderSearch.narrow(folders.orEmpty(), query)
+                here.forEach { name ->
+                    FocusCard(
+                        onClick = {
+                            val next = listOf(current.folder, name).filter { it.isNotBlank() }.joinToString("/")
+                            folderQuery = ""
+                            draftPad.draft = current.copy(folder = next)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(name, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
+                    }
+                }
+                val hits = foundPaths.orEmpty().filter { it !in here }
+                if (!searching && foundPaths != null && here.isEmpty() && hits.isEmpty()) {
+                    Text("No folder matches that.", color = Dim, fontSize = 16.sp)
+                }
+                hits.forEach { path ->
+                    FocusCard(
+                        onClick = {
+                            folderQuery = ""
+                            draftPad.draft = current.copy(folder = path)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(path, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
+                    }
+                }
+                val typed = FolderSearch.path(query)
+                if (typed != null) {
+                    Pill("Open $typed") {
+                        folderQuery = ""
+                        draftPad.draft = current.copy(folder = typed)
+                    }
+                }
+            }
             if (folders == null && problem == null) CircularProgressIndicator(color = Sky)
-            if (folders != null && folders!!.isEmpty()) {
+            if (query.isEmpty() && folders != null && folders!!.isEmpty()) {
                 Text("Nothing in here yet. Use this folder, or make one.", color = Dim, fontSize = 16.sp)
             }
-            folders.orEmpty().forEach { name ->
+            if (query.isEmpty()) folders.orEmpty().forEach { name ->
                 FocusCard(
                     onClick = {
                         val next = listOf(current.folder, name).filter { it.isNotBlank() }.joinToString("/")
@@ -169,6 +241,13 @@ fun BrowseScreen(container: AppContainer, navigator: Navigator, draftPad: DraftP
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(name, color = Mist, fontSize = 18.sp, modifier = Modifier.padding(16.dp))
+                }
+            }
+            if (problem != null) {
+                Pill("Choose another share") {
+                    problem = null
+                    folderQuery = ""
+                    draftPad.draft = current.copy(share = null, folder = "")
                 }
             }
             Pill(if (busy) "saving" else "Use this folder") { save() }
